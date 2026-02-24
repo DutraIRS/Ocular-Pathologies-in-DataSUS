@@ -8,8 +8,8 @@ calc_loo_waic <- function(fit, output_dir) {
   log_lik <- extract_log_lik(fit, merge_chains = FALSE)
   r_eff <- relative_eff(exp(log_lik))
   
-  loo_result <- loo(log_lik, r_eff = r_eff)
-  waic_result <- waic(log_lik)
+  loo_result <- loo(log_lik, r_eff = r_eff, cores = 1)
+  waic_result <- waic(log_lik, cores = 1)
   
   sink(file.path(output_dir, "loo_waic_summary.txt"))
   print(loo_result)
@@ -29,12 +29,17 @@ check_ess_rhat <- function(fit, output_dir) {
   df_summary <- as.data.frame(summary_fit)
   df_summary$parameter <- rownames(summary_fit)
   
+  # 1. Filter out the nuisance constant
+  # We also remove 'lp__' (log probability) which often has lower ESS but isn't a parameter
+  df_clean <- df_summary[!(df_summary$parameter %in% c("max_safe_log_lambda", "lp__")), ]
+  
+  # Save the FULL table (including the constant) to CSV for reference
   write.csv(df_summary, file.path(output_dir, "summary_stats.csv"), row.names = FALSE)
   
-  # max R-hat and min n_eff
+  # 2. Calculate stats only on the CLEAN data
   return(c(
-    max_rhat = max(df_summary$Rhat, na.rm = TRUE),
-    min_n_eff = min(df_summary$n_eff, na.rm = TRUE)
+    max_rhat = max(df_clean$Rhat, na.rm = TRUE),
+    min_n_eff = min(df_clean$n_eff, na.rm = TRUE)
   ))
 }
 

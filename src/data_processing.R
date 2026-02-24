@@ -20,7 +20,10 @@ prepare_data <- function(disease="glaucoma") {
   # Use log pop
   data$log_pop <- log(data$population)
   
-  data <- data[c("state", "year_relative", "age_relative", "log_pop", disease)]
+  # Generic disease
+  data$disease <- data[[disease]]
+  
+  data <- data[c("state", "year_relative", "age_relative", "log_pop", "disease")]
   data <- na.omit(data)
   
   data$state_id <- as.integer(as.factor(data$state))
