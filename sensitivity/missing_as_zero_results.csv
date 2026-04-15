@@ -1,0 +1,4 @@
+"disease","disease_label","scenario","phi_mean","beta_age_mean","sigma_rw_mean","looic","max_rhat","min_n_eff"
+"glaucoma","Glaucoma","missing_as_zero",2.719,0.5883,0.4173,14153.8,1.0029,2427
+"retina","Retinopathy","missing_as_zero",2.7,0.4938,0.4215,24946.6,1.0022,2364
+"eye","Eye & Appendage Diseases","missing_as_zero",3.474,0.5407,0.3291,32485,1.0028,2665
