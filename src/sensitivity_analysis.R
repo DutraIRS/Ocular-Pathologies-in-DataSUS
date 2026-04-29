@@ -153,6 +153,10 @@ for (d in DISEASES) {
   ggsave(file.path("sensitivity", "phi_priors", d,
                     "phi_posterior_comparison.png"),
          p, width = 10, height = 6, dpi = 300)
+  write.csv(phi_df,
+            file.path("sensitivity", "phi_priors", d,
+                       "phi_posterior_comparison.csv"),
+            row.names = FALSE)
 }
 
 cat("Phi posterior comparison plots saved.\n")

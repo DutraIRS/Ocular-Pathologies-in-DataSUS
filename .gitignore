@@ -48,3 +48,13 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 *.rds
+
+# Auto-generated HTML
+README.html
+
+diagnostics/
+ad_hoc/results/
+ad_hoc/results_holdout/
+sensitivity/exclude_2024/
+sensitivity/missing_as_zero/
+sensitivity/phi_priors/

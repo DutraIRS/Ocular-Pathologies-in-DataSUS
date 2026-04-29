@@ -5,11 +5,12 @@ library(tidyr)
 
 source("src/data_processing.R")
 
-BEST_MODEL     <- "nb5"
+BEST_MODEL     <- "nb5_age_cat"
+FIT_DIR        <- "ad_hoc/results"      # fits live in ad_hoc, not diagnostics
 DISEASES       <- c("glaucoma", "retina", "eye")
 DISEASE_LABELS <- c(glaucoma = "Glaucoma", retina = "Retinopathy",
                      eye = "Eye & Appendage Diseases")
-FORECAST_END   <- 2050
+FORECAST_END   <- 2036
 N_POST_DRAWS   <- 500   # posterior draws for forecasting / PPC (speed)
 
 AGE_GROUPS     <- c(25, 35, 45, 55, 65, 75, 90)
@@ -119,6 +120,15 @@ for (d in DISEASES) {
          width = 12, height = 7, dpi = 300)
   ggsave(paste0("results/fig1_temporal_trends_", d, ".pdf"), fig1,
          width = 12, height = 7)
+
+  # Save chart data: combine regional + national in long format
+  fig1_data <- bind_rows(
+    regional %>% mutate(series = as.character(region)),
+    national %>% mutate(series = "National", region = NA)
+  ) %>% select(series, region, year, cases, pop, rate)
+  write.csv(fig1_data,
+            paste0("results/fig1_temporal_trends_", d, ".csv"),
+            row.names = FALSE)
   cat("  Saved:", d, "\n")
 }
 
@@ -164,6 +174,14 @@ for (d in DISEASES) {
          width = 16, height = 10, dpi = 300)
   ggsave(paste0("results/fig2_age_stratified_", d, ".pdf"), fig2,
          width = 16, height = 10)
+
+  fig2_data <- bind_rows(
+    regional_age %>% mutate(series = as.character(region)),
+    national_age %>% mutate(series = "National", region = NA)
+  ) %>% select(series, region, year, age_label, cases, pop, rate)
+  write.csv(fig2_data,
+            paste0("results/fig2_age_stratified_", d, ".csv"),
+            row.names = FALSE)
   cat("  Saved:", d, "\n")
 }
 
@@ -204,7 +222,7 @@ cat("\n=== Table 1b: NB5 Demographic Performance ===\n")
 subgroup_results <- list()
 
 for (d in DISEASES) {
-  fit_path <- file.path("diagnostics", d, BEST_MODEL, "fit.rds")
+  fit_path <- file.path(FIT_DIR, BEST_MODEL, d, "fit.rds")
   if (!file.exists(fit_path)) {
     cat("  Skipping", d, "- fit.rds not found.\n")
     next
@@ -288,7 +306,7 @@ for (d in DISEASES) {
 }
 
 table1b <- do.call(rbind, subgroup_results)
-write.csv(table1b, "results/table1b_nb5_demographic_performance.csv",
+write.csv(table1b, "results/table1b_demographic_performance.csv",
           row.names = FALSE)
 cat("  Saved.\n")
 
@@ -298,7 +316,6 @@ cat("\n=== Figure 3: Forecasting ===\n")
 forecast_years <- (max_year + 1):FORECAST_END
 n_forecast     <- length(forecast_years)
 all_years      <- min_year:FORECAST_END
-age_cent_vals  <- (AGE_GROUPS - 60) / 10
 
 pop_obs <- raw %>%
   select(state, year, age, population) %>%
@@ -320,7 +337,7 @@ cat("  Population ready:", nrow(pop_all), "total rows.\n")
 forecast_all <- list()
 
 for (d in DISEASES) {
-  fit_path <- file.path("diagnostics", d, BEST_MODEL, "fit.rds")
+  fit_path <- file.path(FIT_DIR, BEST_MODEL, d, "fit.rds")
   if (!file.exists(fit_path)) {
     cat("  Skipping", d, "- fit not found.\n")
     next
@@ -331,9 +348,9 @@ for (d in DISEASES) {
   post <- rstan::extract(fit)
   rm(fit); gc()
 
-  alpha_full <- post$alpha_st        # [draws, states, years]
-  beta_full  <- post$beta_age        # [draws] (global age effect in NB5)
-  sigma_full <- post$sigma_alpha_rw  # [draws]
+  alpha_full   <- post$alpha_st         # [draws, states, years]
+  beta_cat_full <- post$beta_age_cat   # [draws, 7] — one per age group
+  sigma_full   <- post$sigma_alpha_rw   # [draws]
   rm(post); gc()
 
   n_draws  <- dim(alpha_full)[1]
@@ -349,10 +366,10 @@ for (d in DISEASES) {
   n_use <- min(n_draws, N_POST_DRAWS)
   di    <- sample(n_draws, n_use)
 
-  alpha_st <- alpha_full[di, , , drop = FALSE]  # [n_use, states, years]
-  beta_age <- as.numeric(beta_full[di])          # [n_use] plain vector
-  sigma_rw <- as.numeric(sigma_full[di])         # [n_use] plain vector
-  rm(alpha_full, beta_full, sigma_full); gc()
+  alpha_st     <- alpha_full[di, , , drop = FALSE]  # [n_use, states, years]
+  beta_age_cat <- beta_cat_full[di, , drop = FALSE]  # [n_use, 7]
+  sigma_rw     <- as.numeric(sigma_full[di])          # [n_use]
+  rm(alpha_full, beta_cat_full, sigma_full); gc()
 
   # Forward-simulate random walk for alpha (vectorized over draws & states)
   alpha_last <- alpha_st[, , n_years]  # [n_use, n_states]
@@ -395,7 +412,7 @@ for (d in DISEASES) {
       total_cases <- rep(0, n_use)
       for (a_idx in seq_along(AGE_GROUPS)) {
         log_lam <- log(pop_sy[a_idx]) + a_draws +
-                   beta_age * age_cent_vals[a_idx]
+                   beta_age_cat[, a_idx]
         log_lam <- pmin(log_lam, 20.5)
         total_cases <- total_cases + exp(log_lam)
       }
@@ -419,7 +436,7 @@ for (d in DISEASES) {
   }
 
   forecast_all[[d]] <- do.call(rbind, results[seq_len(k)])
-  rm(alpha_st, alpha_fwd, beta_age, sigma_rw); gc()
+  rm(alpha_st, alpha_fwd, beta_age_cat, sigma_rw); gc()
   cat(" done.\n")
 }
 
@@ -488,7 +505,7 @@ for (d in DISEASES) {
       scale_x_continuous(breaks = seq(2010, 2050, 5)) +
       labs(
         title    = paste0(st, " (", st_region, ") - ", d_label, " Forecast"),
-        subtitle = "NB5 posterior projection with 80%/95% credible intervals.",
+        subtitle = "NB5-AgeCat posterior projection with 80%/95% credible intervals.",
         x = "Year",
         y = "Rate per 1,000,000"
       ) +
@@ -496,15 +513,153 @@ for (d in DISEASES) {
 
     ggsave(paste0("results/forecasts/fig3_", d, "_", st, ".png"), fig3,
            width = 8, height = 5, dpi = 300)
+
+    # Save chart data
+    fig3_data <- bind_rows(
+      df_fc_s %>% mutate(layer = "model"),
+      df_obs_s %>% transmute(state, year, obs_rate, layer = "observed")
+    )
+    write.csv(fig3_data,
+              paste0("results/forecasts/fig3_", d, "_", st, ".csv"),
+              row.names = FALSE)
   }
   cat("  Saved 27 charts for", d, "\n")
 }
 
 cat("\n=== All outputs saved to results/ ===\n")
-cat("Files:\n")
-cat("  results/fig1_temporal_trends_{glaucoma,retina,eye}.{png,pdf}\n")
-cat("  results/fig2_age_stratified_{glaucoma,retina,eye}.{png,pdf}\n")
-cat("  results/table1a_model_comparison.csv\n")
-cat("  results/table1b_nb5_demographic_performance.csv\n")
-cat("  results/forecasts/fig3_{disease}_{state}.png  (27 x 3 = 81 charts)\n")
+cat("  results/fig1_*.{png,pdf}, fig2_*.{png,pdf}\n")
+cat("  results/table1a_model_comparison.csv, table1b_*.csv\n")
+cat("  results/forecasts/fig3_{disease}_{state}.{png,csv}\n")
 cat("  results/forecast_data.csv\n")
+
+
+# =========================================================================
+cat("\n=== Posterior Parameter Plots ===\n")
+
+age_post_all   <- list()
+sigma_post_all <- list()
+phi_post_all   <- list()
+
+for (d in DISEASES) {
+  fit_path <- file.path(FIT_DIR, BEST_MODEL, d, "fit.rds")
+  if (!file.exists(fit_path)) {
+    cat("  Skipping", d, "\n"); next
+  }
+  cat("  Loading", d, "...\n")
+  fit <- readRDS(fit_path)
+  post <- rstan::extract(fit)
+
+  # beta_age_cat: [draws, 7] — age-group log-rate offsets (sum-to-zero)
+  beta_draws <- as.data.frame(post$beta_age_cat)
+  names(beta_draws) <- AGE_LABELS
+  beta_draws$disease <- DISEASE_LABELS[d]
+  beta_draws$draw    <- seq_len(nrow(beta_draws))
+  age_post_all[[d]]  <- beta_draws
+
+  # sigma_alpha_rw: scalar per draw
+  sigma_post_all[[d]] <- data.frame(
+    sigma_rw = as.numeric(post$sigma_alpha_rw),
+    disease  = DISEASE_LABELS[d]
+  )
+
+  # phi: overdispersion
+  phi_post_all[[d]] <- data.frame(
+    phi     = as.numeric(post$phi),
+    disease = DISEASE_LABELS[d]
+  )
+
+  rm(fit, post); gc()
+  cat("  Done.\n")
+}
+
+age_long <- do.call(rbind, age_post_all) %>%
+  tidyr::pivot_longer(cols = all_of(AGE_LABELS),
+                      names_to = "age_group", values_to = "log_offset") %>%
+  mutate(age_group = factor(age_group, levels = AGE_LABELS))
+
+# Posterior summary per disease × age group
+age_summary <- age_long %>%
+  group_by(disease, age_group) %>%
+  summarise(
+    mean   = mean(log_offset),
+    lo_95  = quantile(log_offset, 0.025),
+    hi_95  = quantile(log_offset, 0.975),
+    lo_80  = quantile(log_offset, 0.10),
+    hi_80  = quantile(log_offset, 0.90),
+    .groups = "drop"
+  )
+write.csv(age_summary, "results/posterior_age_effects.csv", row.names = FALSE)
+
+fig_age <- ggplot(age_summary, aes(x = age_group, color = disease, fill = disease)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+  geom_errorbar(aes(ymin = lo_95, ymax = hi_95),
+                width = 0, linewidth = 0.5,
+                position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(ymin = lo_80, ymax = hi_80),
+                width = 0, linewidth = 1.3,
+                position = position_dodge(width = 0.5)) +
+  geom_point(aes(y = mean), size = 2,
+             position = position_dodge(width = 0.5)) +
+  scale_color_brewer(palette = "Set1", name = "Disease") +
+  scale_fill_brewer(palette = "Set1", name = "Disease") +
+  labs(
+    title    = "Posterior Age Effects (Sum-to-Zero Deflections)",
+    subtitle = "Mean + 80%/95% credible intervals. Reference = grand mean across all age groups.",
+    x = "Age group", y = expression(beta[age]~"(log-rate offset)")
+  ) +
+  theme_pub()
+
+ggsave("results/posterior_age_effects.png", fig_age, width = 10, height = 6, dpi = 300)
+ggsave("results/posterior_age_effects.pdf", fig_age, width = 10, height = 6)
+cat("  Age effects plot saved.\n")
+
+sigma_df <- do.call(rbind, sigma_post_all)
+
+sigma_summary <- sigma_df %>%
+  group_by(disease) %>%
+  summarise(mean = mean(sigma_rw), lo_95 = quantile(sigma_rw, 0.025),
+            hi_95 = quantile(sigma_rw, 0.975), .groups = "drop")
+write.csv(sigma_summary, "results/posterior_sigma_rw.csv", row.names = FALSE)
+
+fig_sigma <- ggplot(sigma_df, aes(x = sigma_rw, fill = disease, color = disease)) +
+  geom_density(alpha = 0.25, linewidth = 0.7) +
+  scale_color_brewer(palette = "Set1", name = "Disease") +
+  scale_fill_brewer(palette = "Set1", name = "Disease") +
+  labs(
+    title    = expression("Posterior of "*sigma[alpha]*" (Random-Walk SD)"),
+    subtitle = "State-level annual drift on log-rate scale. Larger = more between-state temporal variability.",
+    x = expression(sigma[alpha]), y = "Posterior density"
+  ) +
+  theme_pub()
+
+ggsave("results/posterior_sigma_rw.png", fig_sigma, width = 8, height = 5, dpi = 300)
+ggsave("results/posterior_sigma_rw.pdf", fig_sigma, width = 8, height = 5)
+cat("  Sigma plot saved.\n")
+
+phi_df <- do.call(rbind, phi_post_all)
+
+phi_summary <- phi_df %>%
+  group_by(disease) %>%
+  summarise(mean = mean(phi), lo_95 = quantile(phi, 0.025),
+            hi_95 = quantile(phi, 0.975), .groups = "drop")
+write.csv(phi_summary, "results/posterior_phi.csv", row.names = FALSE)
+
+fig_phi <- ggplot(phi_df, aes(x = phi, fill = disease, color = disease)) +
+  geom_density(alpha = 0.25, linewidth = 0.7) +
+  scale_color_brewer(palette = "Set1", name = "Disease") +
+  scale_fill_brewer(palette = "Set1", name = "Disease") +
+  labs(
+    title    = expression("Posterior of "*phi*" (Negative-Binomial Overdispersion)"),
+    subtitle = "Smaller phi = more overdispersion beyond Poisson.",
+    x = expression(phi), y = "Posterior density"
+  ) +
+  theme_pub()
+
+ggsave("results/posterior_phi.png", fig_phi, width = 8, height = 5, dpi = 300)
+ggsave("results/posterior_phi.pdf", fig_phi, width = 8, height = 5)
+cat("  Phi plot saved.\n")
+
+cat("\n=== All done. New outputs:\n")
+cat("  results/posterior_age_effects.{png,pdf,csv}\n")
+cat("  results/posterior_sigma_rw.{png,pdf,csv}\n")
+cat("  results/posterior_phi.{png,pdf,csv}\n")
