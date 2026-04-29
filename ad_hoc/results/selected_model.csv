@@ -1,0 +1,4 @@
+"disease","selected","LOOIC","LOOIC_SE","MAE","MRE","RMSE","Cov_80","Cov_95","max_rhat","min_n_eff","complexity","n_tied","tied_with","n_filtered_out"
+"Glaucoma","nb5_age_cat",12389.7,174.4,10.475,1.6589,21.945,90.8,97.8,1.0034,2539,4,2,"nb5_ar1_age_cat",6
+"Retinopathy","nb5_age_cat",20653.2,191.9,34.373,1.5998,66.161,86.5,97,1.0045,2367,4,2,"nb5_ar1_age_cat",6
+"Eye & Appendage Diseases","nb5_age_cat",30296,190.4,242.508,2.0933,543.204,85.4,96.3,1.0038,2341,4,2,"nb5_ar1_age_cat",6

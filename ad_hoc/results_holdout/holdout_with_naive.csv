@@ -1,0 +1,10 @@
+"variant","disease","MAE","MRE","RMSE","Bias","Cov_80","Cov_95","N_obs"
+"nb5_age_cat","Glaucoma",9.284,0.5224,14.926,-0.036,74.1,90.7,54
+"nb5_age_cat","Retinopathy",39.181,0.4976,61.59,0.789,87,94.4,54
+"nb5_age_cat","Eye & Appendage Diseases",182.071,0.3338,315.385,-137.289,83.3,92.6,54
+"naive_LVCF","Glaucoma",8.623,0.3953,14.085,-5.378,NA,NA,54
+"naive_linear","Glaucoma",11.435,1.0581,16.665,-7.22,NA,NA,54
+"naive_LVCF","Retinopathy",54.053,0.4848,76.159,-37.084,NA,NA,54
+"naive_linear","Retinopathy",60.942,0.6916,89.544,-40.714,NA,NA,54
+"naive_LVCF","Eye & Appendage Diseases",194.372,0.3554,308.077,-157.812,NA,NA,54
+"naive_linear","Eye & Appendage Diseases",309.174,0.6413,449.603,-262.195,NA,NA,54

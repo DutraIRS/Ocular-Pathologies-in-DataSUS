@@ -1,0 +1,4 @@
+"variant","disease","MAE","MRE","RMSE","Bias","Cov_80","Cov_95","N_obs"
+"nb5_age_cat","Glaucoma",9.284,0.5224,14.926,-0.036,74.1,90.7,54
+"nb5_age_cat","Retinopathy",39.181,0.4976,61.59,0.789,87,94.4,54
+"nb5_age_cat","Eye & Appendage Diseases",182.071,0.3338,315.385,-137.289,83.3,92.6,54

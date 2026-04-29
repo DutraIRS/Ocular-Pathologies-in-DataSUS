@@ -275,6 +275,7 @@ for (d in DISEASES) {
       Subgroup = grp_val,
       N       = length(obs_idx),
       MAE     = round(mean(abs(obs_r - pred_r)), 2),
+      MRE     = round(mean(abs(obs_r - pred_r) / pmax(obs_r, 1)), 4),
       RMSE    = round(sqrt(mean((obs_r - pred_r)^2)), 2),
       Bias    = round(mean(pred_r - obs_r), 2),
       Cov_80  = round(mean(y >= q10 & y <= q90) * 100, 1),
