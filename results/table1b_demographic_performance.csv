@@ -1,40 +1,40 @@
-"Disease","Group","Subgroup","N","MAE","RMSE","Bias","Cov_80","Cov_95"
-"Glaucoma","Age","25-34",345,1.55,2.5,-0.09,81.7,91.9
-"Glaucoma","Age","35-44",390,1.88,2.75,-0.02,90.5,97.4
-"Glaucoma","Age","45-54",390,3.34,5.12,0.21,92.8,97.9
-"Glaucoma","Age","55-64",375,6.13,9.73,0.37,93.9,98.4
-"Glaucoma","Age","65-74",405,12.55,19.76,-0.56,94.8,99.8
-"Glaucoma","Age","75-89",375,24.8,38.55,-1.19,93.3,98.4
-"Glaucoma","Age","90+",345,24.08,38.16,2.03,89,96.8
-"Glaucoma","Region","North",570,8.32,17.59,0.63,96.3,98.8
-"Glaucoma","Region","Northeast",900,9.22,20.84,0.17,91.8,97.8
-"Glaucoma","Region","Center-West",420,15.22,28.87,-1.96,90,97.6
-"Glaucoma","Region","Southeast",420,7.99,16.91,-3.65,90.2,96.9
-"Glaucoma","Region","South",315,15.16,27.12,6.5,81.9,93.7
-"Glaucoma","Overall","All",2625,10.5,21.99,0.08,91,97.3
-"Retinopathy","Age","25-34",405,6.05,8.71,0.65,74.3,91.1
-"Retinopathy","Age","35-44",405,7,10.09,1.11,84.7,97.3
-"Retinopathy","Age","45-54",405,12.34,18.09,2.15,93.6,99.8
-"Retinopathy","Age","55-64",405,30.55,44.96,-0.32,93.3,98.8
-"Retinopathy","Age","65-74",405,46.76,72.72,-5.07,94.3,99.8
-"Retinopathy","Age","75-89",405,73.29,113.75,-8.96,86.9,98.8
-"Retinopathy","Age","90+",390,66.02,101.3,-1.97,76.9,95.1
-"Retinopathy","Region","North",720,26.03,68.65,-7.62,87.4,95.7
-"Retinopathy","Region","Northeast",945,32.09,55.54,0.79,87.4,98.4
-"Retinopathy","Region","Center-West",420,43.57,76.83,-1.26,87.9,98.6
-"Retinopathy","Region","Southeast",420,31.92,52.59,1.4,84.8,96
-"Retinopathy","Region","South",315,51.61,88.34,-0.99,81,97.1
-"Retinopathy","Overall","All",2820,34.41,66.33,-1.77,86.3,97.2
-"Eye & Appendage Diseases","Age","25-34",405,32.09,46.91,9.86,77.8,91.4
-"Eye & Appendage Diseases","Age","35-44",405,35.76,53.05,12.8,82.2,96.8
-"Eye & Appendage Diseases","Age","45-54",405,52.5,81.2,18.28,94.6,99
-"Eye & Appendage Diseases","Age","55-64",405,102.67,140.6,19.36,95.8,99.8
-"Eye & Appendage Diseases","Age","65-74",405,308.18,476.61,-85.43,87.9,96.5
-"Eye & Appendage Diseases","Age","75-89",405,687.52,1112.8,-247.34,77.5,95.6
-"Eye & Appendage Diseases","Age","90+",405,482.77,764.1,-124.5,79.5,94.6
-"Eye & Appendage Diseases","Region","North",735,209.61,567.74,-90.97,78.8,91.4
-"Eye & Appendage Diseases","Region","Northeast",945,203.48,398.76,-35.28,87.5,97.8
-"Eye & Appendage Diseases","Region","Center-West",420,382.15,863.2,-114.73,85.7,97.4
-"Eye & Appendage Diseases","Region","Southeast",420,275.6,501.64,-124.02,89.5,98.1
-"Eye & Appendage Diseases","Region","South",315,211.09,342.15,126.05,85.4,98.7
-"Eye & Appendage Diseases","Overall","All",2835,243.07,545.2,-56.71,85,96.2
+"Disease","Group","Subgroup","N","MAE","MRE","RMSE","Bias","Cov_80","Cov_95"
+"Glaucoma","Age","25-34",345,1.55,0.6366,2.5,-0.1,81.4,92.8
+"Glaucoma","Age","35-44",390,1.88,0.5577,2.75,-0.03,90.3,97.7
+"Glaucoma","Age","45-54",390,3.36,0.7283,5.14,0.2,92.6,98.5
+"Glaucoma","Age","55-64",375,6.14,1.1218,9.77,0.37,93.9,98.9
+"Glaucoma","Age","65-74",405,12.53,2.0564,19.74,-0.58,94.8,99.8
+"Glaucoma","Age","75-89",375,24.61,3.1525,38.44,-1.12,93.3,98.4
+"Glaucoma","Age","90+",345,23.89,3.5304,37.91,2.03,89.3,97.4
+"Glaucoma","Region","North",570,8.32,3.9857,17.67,0.64,95.6,98.9
+"Glaucoma","Region","Northeast",900,9.18,1.226,20.77,0.19,91.7,98.3
+"Glaucoma","Region","Center-West",420,15.15,1.4853,28.64,-1.99,89.5,97.6
+"Glaucoma","Region","Southeast",420,7.91,0.5953,16.77,-3.6,91.4,97.1
+"Glaucoma","Region","South",315,15.04,0.3994,27.04,6.46,81.9,94.6
+"Glaucoma","Overall","All",2625,10.45,1.6666,21.9,0.08,91,97.7
+"Retinopathy","Age","25-34",405,6.07,0.6077,8.71,0.71,75.3,91.6
+"Retinopathy","Age","35-44",405,6.97,0.5164,10.04,1.07,85.2,96.5
+"Retinopathy","Age","45-54",405,12.41,0.6126,18.15,2.23,92.3,99.8
+"Retinopathy","Age","55-64",405,30.7,1.4468,45.06,-0.5,93.1,99
+"Retinopathy","Age","65-74",405,46.85,1.9357,72.26,-5.37,94.3,99.5
+"Retinopathy","Age","75-89",405,72.46,3.311,112.35,-8.77,88.1,98.8
+"Retinopathy","Age","90+",390,66.15,2.726,101.15,-1.98,75.6,94.1
+"Retinopathy","Region","North",720,26.02,5.0517,68.26,-7.7,87.5,95.4
+"Retinopathy","Region","Northeast",945,31.94,0.3846,55.06,0.64,87,98.1
+"Retinopathy","Region","Center-West",420,43.47,0.8309,76.31,-1.46,88.6,98.3
+"Retinopathy","Region","Southeast",420,31.95,0.1697,52.64,1.35,83.8,96.4
+"Retinopathy","Region","South",315,51.63,0.179,87.57,-0.3,82.2,96.8
+"Retinopathy","Overall","All",2820,34.35,1.5877,65.89,-1.8,86.3,97.1
+"Eye & Appendage Diseases","Age","25-34",405,32.1,0.5468,46.98,9.59,77.3,92.8
+"Eye & Appendage Diseases","Age","35-44",405,35.96,0.4548,53.64,13.21,82,96.3
+"Eye & Appendage Diseases","Age","45-54",405,52.22,0.4213,80.48,17.75,94.1,99.3
+"Eye & Appendage Diseases","Age","55-64",405,102.34,0.8966,138.98,18.81,96.5,100
+"Eye & Appendage Diseases","Age","65-74",405,307.31,2.3071,469.61,-80.76,87.9,97.5
+"Eye & Appendage Diseases","Age","75-89",405,687.36,4.1273,1111.63,-241.21,78.5,95.3
+"Eye & Appendage Diseases","Age","90+",405,482.9,5.7943,762.61,-124.93,79.8,95.3
+"Eye & Appendage Diseases","Region","North",735,210.18,7.174,569.25,-91.29,78.2,92.5
+"Eye & Appendage Diseases","Region","Northeast",945,203.08,0.3152,397.5,-33.28,88,98.2
+"Eye & Appendage Diseases","Region","Center-West",420,381.26,0.3158,858.63,-112.91,86.7,96.9
+"Eye & Appendage Diseases","Region","Southeast",420,274.73,0.243,495.66,-121.91,88.8,98.6
+"Eye & Appendage Diseases","Region","South",315,211.66,0.2747,345.05,127.67,85.7,98.7
+"Eye & Appendage Diseases","Overall","All",2835,242.89,2.0783,543.63,-55.36,85.1,96.6

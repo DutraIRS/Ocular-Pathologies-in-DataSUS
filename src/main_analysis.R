@@ -425,7 +425,7 @@ for (d in DISEASES) {
         state       = st,
         year        = yr,
         disease     = d,
-        median_rate = as.numeric(median(rate_draws)),
+        mean_rate = as.numeric(mean(rate_draws)),
         lower_95    = as.numeric(quantile(rate_draws, 0.025)),
         upper_95    = as.numeric(quantile(rate_draws, 0.975)),
         lower_80    = as.numeric(quantile(rate_draws, 0.10)),
@@ -488,12 +488,12 @@ for (d in DISEASES) {
       ) +
       geom_line(
         data = df_fc_s %>% filter(!is_forecast),
-        aes(x = year, y = median_rate),
+        aes(x = year, y = mean_rate),
         color = "steelblue", linewidth = 0.8
       ) +
       geom_line(
         data = df_fc_s %>% filter(is_forecast),
-        aes(x = year, y = median_rate),
+        aes(x = year, y = mean_rate),
         color = "firebrick", linewidth = 0.8
       ) +
       geom_point(
@@ -560,13 +560,13 @@ for (d in DISEASES) {
   # sigma_alpha_rw: scalar per draw
   sigma_post_all[[d]] <- data.frame(
     sigma_rw = as.numeric(post$sigma_alpha_rw),
-    disease  = DISEASE_LABELS[d]
+    disease  = unname(DISEASE_LABELS[d])
   )
 
   # phi: overdispersion
   phi_post_all[[d]] <- data.frame(
     phi     = as.numeric(post$phi),
-    disease = DISEASE_LABELS[d]
+    disease = unname(DISEASE_LABELS[d])
   )
 
   rm(fit, post); gc()
@@ -660,7 +660,286 @@ ggsave("results/posterior_phi.png", fig_phi, width = 8, height = 5, dpi = 300)
 ggsave("results/posterior_phi.pdf", fig_phi, width = 8, height = 5)
 cat("  Phi plot saved.\n")
 
+cat("\n=== Posterior State Effects ===\n")
+
+state_eff_all <- list()
+
+for (d in DISEASES) {
+  fit_path <- file.path(FIT_DIR, BEST_MODEL, d, "fit.rds")
+  if (!file.exists(fit_path)) next
+
+  cat("  Loading", d, "...\n")
+  fit <- readRDS(fit_path)
+  post <- rstan::extract(fit)
+  rm(fit); gc()
+
+  # Final-year state intercepts: alpha_st[draw, state, T]
+  T_idx <- dim(post$alpha_st)[3]
+  alpha_T <- post$alpha_st[, , T_idx]   # [draws, states]
+  rm(post); gc()
+
+  # Recover state names from prepare_data factor levels
+  dp <- prepare_data(d)
+  state_names <- levels(dp$state)
+  rm(dp)
+
+  # Per-state summary
+  state_summary <- data.frame(
+    state    = state_names,
+    region   = factor(REGION_MAP[state_names], levels = REGION_ORDER),
+    mean     = colMeans(alpha_T),
+    sd       = apply(alpha_T, 2, sd),
+    lo_95    = apply(alpha_T, 2, quantile, 0.025),
+    hi_95    = apply(alpha_T, 2, quantile, 0.975),
+    lo_80    = apply(alpha_T, 2, quantile, 0.10),
+    hi_80    = apply(alpha_T, 2, quantile, 0.90),
+    disease  = DISEASE_LABELS[d],
+    stringsAsFactors = FALSE
+  )
+  state_eff_all[[d]] <- state_summary
+}
+
+state_eff_df <- do.call(rbind, state_eff_all)
+
+# Order states within each disease by their posterior mean for that disease
+state_eff_df <- state_eff_df %>%
+  group_by(disease) %>%
+  arrange(disease, mean) %>%
+  mutate(state_within = factor(state, levels = unique(state))) %>%
+  ungroup()
+
+write.csv(state_eff_df, "results/posterior_state_effects.csv", row.names = FALSE)
+
+fig_state <- ggplot(state_eff_df,
+                     aes(x = mean, y = state_within, color = region)) +
+  geom_errorbar(aes(xmin = lo_95, xmax = hi_95), orientation = "y",
+                width = 0, linewidth = 0.4) +
+  geom_errorbar(aes(xmin = lo_80, xmax = hi_80), orientation = "y",
+                width = 0, linewidth = 1.1) +
+  geom_point(size = 1.8) +
+  facet_wrap(~ disease, scales = "free", ncol = 3) +
+  scale_color_brewer(palette = "Set1", name = "Region") +
+  labs(
+    title    = expression("Posterior State Effects "*alpha[s*","*T]*" (final year, 2024)"),
+    subtitle = "Each state's log-rate intercept (age-averaged via sum-to-zero coding). Bars: 80% (thick) / 95% (thin) credible intervals.",
+    x = expression(alpha[s*","*T]),
+    y = "State (ordered by posterior mean within disease)"
+  ) +
+  theme_pub(base_size = 9) +
+  theme(legend.position = "bottom")
+
+ggsave("results/posterior_state_effects.png", fig_state,
+       width = 14, height = 9, dpi = 300)
+ggsave("results/posterior_state_effects.pdf", fig_state,
+       width = 14, height = 9)
+cat("  State effects plot saved.\n")
+
+
+cat("\n=== Regional & National Forecasts ===\n")
+
+# Re-load population (we need observed + projected to forecast end)
+pop_obs <- raw %>%
+  select(state, year, age, population) %>%
+  distinct()
+
+forecast_years <- (max_year + 1):FORECAST_END
+n_forecast     <- length(forecast_years)
+all_years      <- min_year:FORECAST_END
+
+IBGE_PATH <- "data/ibge_population_projections.csv"
+if (file.exists(IBGE_PATH)) {
+  pop_ibge <- read.csv(IBGE_PATH)
+  names(pop_ibge) <- c("state", "year", "age", "population")
+  pop_future <- pop_ibge %>% filter(year %in% forecast_years)
+} else {
+  stop("IBGE projections required. Run src/fetch_ibge_projections.R first.")
+}
+pop_all <- rbind(pop_obs, pop_future)
+
+# State-region map
+agg_forecast_all <- list()
+
+for (d in DISEASES) {
+  fit_path <- file.path(FIT_DIR, BEST_MODEL, d, "fit.rds")
+  if (!file.exists(fit_path)) next
+  cat("  Forecasting", d, "...\n")
+
+  fit <- readRDS(fit_path)
+  post <- rstan::extract(fit)
+  rm(fit); gc()
+
+  alpha_full <- post$alpha_st          # [draws, states, years]
+  beta_cat_full <- post$beta_age_cat   # [draws, 7]
+  sigma_full <- post$sigma_alpha_rw    # [draws]
+  rm(post); gc()
+
+  n_draws  <- dim(alpha_full)[1]
+  n_states <- dim(alpha_full)[2]
+  n_years  <- dim(alpha_full)[3]
+
+  n_use <- min(n_draws, N_POST_DRAWS)
+  di    <- sample(n_draws, n_use)
+
+  alpha_st     <- alpha_full[di, , , drop = FALSE]    # [n_use, states, years]
+  beta_age_cat <- beta_cat_full[di, , drop = FALSE]    # [n_use, 7]
+  sigma_rw     <- as.numeric(sigma_full[di])
+  rm(alpha_full, beta_cat_full, sigma_full); gc()
+
+  # Forward simulate RW
+  alpha_last <- alpha_st[, , n_years]
+  alpha_fwd  <- array(NA, dim = c(n_use, n_states, n_forecast))
+  for (h in seq_len(n_forecast)) {
+    eps <- sweep(matrix(rnorm(n_use * n_states), n_use, n_states),
+                 1, sigma_rw, "*")
+    alpha_last <- alpha_last + eps
+    alpha_fwd[, , h] <- alpha_last
+  }
+
+  # State names and region mapping
+  dp <- prepare_data(d)
+  state_names <- levels(dp$state)
+  rm(dp)
+  state_region <- REGION_MAP[state_names]
+
+  # exp(beta_age_cat): [n_use, 7]
+  exp_beta <- exp(beta_age_cat)
+
+  # For each year, compute predicted cases per (draw, state), then aggregate
+  rows <- list()
+  for (yr in all_years) {
+    # Population by state x age for this year
+    pop_sa <- matrix(NA, nrow = n_states, ncol = length(AGE_GROUPS))
+    for (s in seq_along(state_names)) {
+      pp <- pop_all %>%
+        filter(state == state_names[s], year == yr) %>%
+        arrange(age) %>%
+        pull(population)
+      if (length(pp) == length(AGE_GROUPS)) pop_sa[s, ] <- pp
+    }
+    if (any(is.na(pop_sa))) next
+
+    # alpha for this year: [n_use, n_states]
+    if (yr <= max_year) {
+      a_draws <- alpha_st[, , yr - min_year + 1]
+    } else {
+      a_draws <- alpha_fwd[, , yr - max_year]
+    }
+    # cap to prevent overflow
+    a_draws <- pmin(a_draws, 20.5)
+
+    # pop_weighted_factor[draw, state] = sum_a pop_sa[s,a] * exp(beta_age_cat[draw, a])
+    # = exp_beta %*% t(pop_sa) → [n_use, n_states]
+    pop_weighted <- exp_beta %*% t(pop_sa)
+
+    # Predicted cases per (draw, state): exp(alpha) * pop_weighted_factor
+    cases <- exp(a_draws) * pop_weighted   # [n_use, n_states]
+
+    # Total population per state and national
+    total_pop_state <- rowSums(pop_sa)
+    total_pop_national <- sum(total_pop_state)
+
+    # Region-level rates per draw
+    for (rg in REGION_ORDER) {
+      mask <- state_region == rg
+      rcases <- rowSums(cases[, mask, drop = FALSE])
+      rpop   <- sum(total_pop_state[mask])
+      rate   <- rcases / rpop * 1e6
+      rows[[length(rows) + 1]] <- data.frame(
+        scope     = rg,
+        year      = yr,
+        mean_rate = mean(rate),
+        lo_80     = as.numeric(quantile(rate, 0.10)),
+        hi_80     = as.numeric(quantile(rate, 0.90)),
+        lo_95     = as.numeric(quantile(rate, 0.025)),
+        hi_95     = as.numeric(quantile(rate, 0.975)),
+        is_forecast = yr > max_year,
+        disease     = d
+      )
+    }
+    # National
+    ncases <- rowSums(cases)
+    nrate  <- ncases / total_pop_national * 1e6
+    rows[[length(rows) + 1]] <- data.frame(
+      scope     = "National",
+      year      = yr,
+      mean_rate = mean(nrate),
+      lo_80     = as.numeric(quantile(nrate, 0.10)),
+      hi_80     = as.numeric(quantile(nrate, 0.90)),
+      lo_95     = as.numeric(quantile(nrate, 0.025)),
+      hi_95     = as.numeric(quantile(nrate, 0.975)),
+      is_forecast = yr > max_year,
+      disease     = d
+    )
+  }
+
+  agg_forecast_all[[d]] <- do.call(rbind, rows)
+  rm(alpha_st, alpha_fwd, beta_age_cat, sigma_rw); gc()
+}
+
+agg_df <- do.call(rbind, agg_forecast_all)
+agg_df$scope         <- factor(agg_df$scope, levels = c(REGION_ORDER, "National"))
+agg_df$disease_label <- DISEASE_LABELS[agg_df$disease]
+
+write.csv(agg_df, "results/regional_national_forecasts.csv", row.names = FALSE)
+
+# One chart per disease x scope (5 regions + national = 6 charts per disease)
+scope_pal <- c(
+  "North"       = "#E41A1C",
+  "Northeast"   = "#377EB8",
+  "Center-West" = "#4DAF4A",
+  "Southeast"   = "#984EA3",
+  "South"       = "#FF7F00",
+  "National"    = "black"
+)
+
+if (!dir.exists("results/forecasts_aggregated")) {
+  dir.create("results/forecasts_aggregated", recursive = TRUE)
+}
+
+for (d in DISEASES) {
+  d_label <- DISEASE_LABELS[d]
+
+  for (sc in c(REGION_ORDER, "National")) {
+    df_one <- agg_df %>% filter(disease == d, scope == sc)
+    if (nrow(df_one) == 0) next
+    line_color <- scope_pal[[sc]]
+
+    p <- ggplot(df_one, aes(x = year)) +
+      geom_ribbon(data = df_one %>% filter(is_forecast),
+                  aes(ymin = lo_95, ymax = hi_95),
+                  fill = line_color, alpha = 0.15) +
+      geom_ribbon(data = df_one %>% filter(is_forecast),
+                  aes(ymin = lo_80, ymax = hi_80),
+                  fill = line_color, alpha = 0.25) +
+      geom_line(aes(y = mean_rate), color = line_color, linewidth = 1.0) +
+      geom_point(aes(y = mean_rate), color = line_color, size = 1.3) +
+      geom_vline(xintercept = max_year, linetype = "dashed",
+                 color = "gray40", linewidth = 0.4) +
+      scale_x_continuous(breaks = seq(2010, FORECAST_END, 2)) +
+      labs(
+        title    = paste0(sc, " - ", d_label, " forecast"),
+        subtitle = paste0("Posterior mean rate per 1,000,000 with 80% / 95% credible intervals on the forecast (",
+                          max_year + 1, "-", FORECAST_END, ")."),
+        x = "Year", y = "Rate per 1,000,000"
+      ) +
+      theme_pub()
+
+    safe_scope <- gsub("[^A-Za-z0-9]+", "_", sc)
+    out_base <- paste0("results/forecasts_aggregated/forecast_", d, "_", safe_scope)
+    ggsave(paste0(out_base, ".png"), p, width = 9, height = 5.5, dpi = 300)
+    ggsave(paste0(out_base, ".pdf"), p, width = 9, height = 5.5)
+    write.csv(df_one,
+              paste0(out_base, ".csv"),
+              row.names = FALSE)
+  }
+  cat("  Regional & national forecasts saved for", d, "(6 charts)\n")
+}
+
+
 cat("\n=== All done. New outputs:\n")
 cat("  results/posterior_age_effects.{png,pdf,csv}\n")
 cat("  results/posterior_sigma_rw.{png,pdf,csv}\n")
 cat("  results/posterior_phi.{png,pdf,csv}\n")
+cat("  results/posterior_state_effects.{png,pdf,csv}\n")
+cat("  results/forecasts_aggregated/forecast_{disease}_{scope}.{png,pdf,csv}  (18 charts)\n")
+cat("  results/regional_national_forecasts.csv  (long-form, all in one)\n")
