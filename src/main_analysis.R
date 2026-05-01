@@ -733,6 +733,99 @@ ggsave("results/posterior_state_effects.png", fig_state,
 ggsave("results/posterior_state_effects.pdf", fig_state,
        width = 14, height = 9)
 cat("  State effects plot saved.\n")
+cat("\n=== Posterior Regional Effects ===\n")
+
+region_eff_all <- list()
+
+for (d in DISEASES) {
+  fit_path <- file.path(FIT_DIR, BEST_MODEL, d, "fit.rds")
+  if (!file.exists(fit_path)) next
+
+  cat("  Loading", d, "...\n")
+  fit <- readRDS(fit_path)
+  post <- rstan::extract(fit)
+  rm(fit); gc()
+
+  T_idx <- dim(post$alpha_st)[3]
+  alpha_T  <- post$alpha_st[, , T_idx]    # [draws, states]
+  rm(post); gc()
+
+  dp <- prepare_data(d)
+  state_names <- levels(dp$state)
+  rm(dp)
+  state_region <- REGION_MAP[state_names]
+  n_states <- length(state_names)
+
+  # State population at year = max_year (summed over age groups)
+  total_pop_state <- numeric(n_states)
+  for (s in seq_along(state_names)) {
+    pp <- raw %>%
+      filter(state == state_names[s], year == max_year) %>%
+      pull(population) %>% unique()
+    total_pop_state[s] <- sum(pp)
+  }
+
+  # Population-weighted average of alpha_s,T per region — on the LOG scale.
+  # This is the regional analogue of beta_age,j: a state-population-weighted
+  # mean of the underlying log-rate intercepts within the region.
+  region_summary <- list()
+  for (rg in REGION_ORDER) {
+    mask <- state_region == rg
+    w    <- total_pop_state[mask]
+    a_sub <- alpha_T[, mask, drop = FALSE]   # [draws, n_states_in_region]
+    # Per-draw weighted mean: a_sub %*% w / sum(w)
+    beta_r <- as.numeric(a_sub %*% w) / sum(w)
+    region_summary[[rg]] <- data.frame(
+      disease   = DISEASE_LABELS[[d]],
+      region    = rg,
+      mean      = mean(beta_r),
+      sd        = sd(beta_r),
+      lo_95     = as.numeric(quantile(beta_r, 0.025)),
+      hi_95     = as.numeric(quantile(beta_r, 0.975)),
+      lo_80     = as.numeric(quantile(beta_r, 0.10)),
+      hi_80     = as.numeric(quantile(beta_r, 0.90)),
+      stringsAsFactors = FALSE
+    )
+  }
+  region_eff_all[[d]] <- do.call(rbind, region_summary)
+}
+
+region_eff_df <- do.call(rbind, region_eff_all)
+region_eff_df$region <- factor(region_eff_df$region, levels = REGION_ORDER)
+
+# Order regions within each disease panel by posterior mean
+region_eff_df <- region_eff_df %>%
+  group_by(disease) %>%
+  arrange(disease, mean) %>%
+  mutate(region_within = factor(region, levels = unique(region))) %>%
+  ungroup()
+
+write.csv(region_eff_df, "results/posterior_region_effects.csv",
+          row.names = FALSE)
+
+fig_region <- ggplot(region_eff_df,
+                     aes(x = mean, y = region_within, color = region)) +
+  geom_errorbar(aes(xmin = lo_95, xmax = hi_95), orientation = "y",
+                width = 0, linewidth = 0.5) +
+  geom_errorbar(aes(xmin = lo_80, xmax = hi_80), orientation = "y",
+                width = 0, linewidth = 1.4) +
+  geom_point(size = 2.5) +
+  facet_wrap(~ disease, scales = "free", ncol = 3) +
+  scale_color_brewer(palette = "Set1", name = "Region") +
+  labs(
+    title    = expression("Posterior Regional Effects "*beta[r]*" (final year, age-averaged log-rate)"),
+    subtitle = "Population-weighted mean of the state intercepts on the log-rate scale. Bars: 80% (thick) / 95% (thin) credible intervals.",
+    x = expression(beta[r]~"(log-rate, population-weighted state mean)"),
+    y = "Region (ordered by posterior mean within disease)"
+  ) +
+  theme_pub(base_size = 11) +
+  theme(legend.position = "bottom")
+
+ggsave("results/posterior_region_effects.png", fig_region,
+       width = 14, height = 5, dpi = 300)
+ggsave("results/posterior_region_effects.pdf", fig_region,
+       width = 14, height = 5)
+cat("  Region effects plot saved.\n")
 
 
 cat("\n=== Regional & National Forecasts ===\n")
@@ -941,5 +1034,6 @@ cat("  results/posterior_age_effects.{png,pdf,csv}\n")
 cat("  results/posterior_sigma_rw.{png,pdf,csv}\n")
 cat("  results/posterior_phi.{png,pdf,csv}\n")
 cat("  results/posterior_state_effects.{png,pdf,csv}\n")
+cat("  results/posterior_region_effects.{png,pdf,csv}\n")
 cat("  results/forecasts_aggregated/forecast_{disease}_{scope}.{png,pdf,csv}  (18 charts)\n")
 cat("  results/regional_national_forecasts.csv  (long-form, all in one)\n")
